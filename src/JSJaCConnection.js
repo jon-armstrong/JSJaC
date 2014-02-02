@@ -1438,7 +1438,7 @@ JSJaCConnection.prototype._setStatus = function(status) {
 /**
  * @private
  */
-JSJaCConnection.prototype._unregisterPID = function(pID) {
+JSJaCConnection.prototype._unregisterPID = function(packet) {
   var id = packet.getID() || '';
   var to = packet.getTo() || '';
   var pID = to + '_' + id;
