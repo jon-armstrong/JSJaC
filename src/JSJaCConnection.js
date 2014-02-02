@@ -481,7 +481,7 @@ JSJaCConnection.prototype.send = function(packet,cb,arg) {
       packet.setID('JSJaCID_'+this._ID++); // generate an ID
 
     // register callback with id
-    this._registerPID(packet.getID(),cb,arg);
+    this._registerPID(packet, cb, arg);
   }
 
   this._pQueue = this._pQueue.concat(packet.xml());
@@ -1143,19 +1143,33 @@ JSJaCConnection.prototype._handleEvent = function(event,arg) {
 /**
  * @private
  */
-JSJaCConnection.prototype._handlePID = function(aJSJaCPacket) {
-  if (!aJSJaCPacket.getID())
+JSJaCConnection.prototype._handlePID = function(packet) {
+  if (!packet.getID())
     return false;
   for (var i in this._regIDs) {
-    if (this._regIDs.hasOwnProperty(i) &&
-        this._regIDs[i] && i == aJSJaCPacket.getID()) {
-      var pID = aJSJaCPacket.getID();
+    if (this._regIDs.hasOwnProperty(i) && this._regIDs[i]) {
+      var from = packet.getFrom() || '';
+      if (i.indexOf('_') == 0) {
+        // when sending the 'to' was empty
+        if (from !== '' && (from === this.jid ||
+                            from === this.fulljid ||
+                            from === this.domain)) {
+          // we didn't set 'to' when sending and now 'from' seems to
+          // be from the server directly, let's trust it.
+          from = '';
+        }
+      }
+
+      var id = packet.getID() || '';
+      var pID = from + '_' + id;
+      if (i !== pID) continue;
+
       this.oDbg.log("handling "+pID,3);
-      if (this._regIDs[i].cb.call(this, aJSJaCPacket, this._regIDs[i].arg) === false) {
+      if (this._regIDs[i].cb.call(this, packet, this._regIDs[i].arg) === false) {
         // don't unregister
         return false;
       } else {
-        this._unregisterPID(pID);
+        this._unregisterPID(packet);
         return true;
       }
     }
@@ -1342,10 +1356,13 @@ JSJaCConnection.prototype._process = function(timerval) {
 /**
  * @private
  */
-JSJaCConnection.prototype._registerPID = function(pID,cb,arg) {
-  if (!pID || !cb)
+JSJaCConnection.prototype._registerPID = function(packet,cb,arg) {
+  var id = packet.getID();
+  if (!id || !cb)
     return false;
-  this._regIDs[pID] = {};
+  var to = packet.getTo() || '';
+  pID =  to + '_'+ id;
+    this._regIDs[pID] = {};
   this._regIDs[pID].cb = cb;
   if (arg)
     this._regIDs[pID].arg = arg;
@@ -1422,6 +1439,10 @@ JSJaCConnection.prototype._setStatus = function(status) {
  * @private
  */
 JSJaCConnection.prototype._unregisterPID = function(pID) {
+  var id = packet.getID() || '';
+  var to = packet.getTo() || '';
+  var pID = to + '_' + id;
+
   if (!this._regIDs[pID])
     return false;
   this._regIDs[pID] = null;
